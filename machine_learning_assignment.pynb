@@ -1,0 +1,241 @@
+# Import necessary libraries
+import pickle  # For saving and loading models
+import pandas as pd  # For data manipulation
+import seaborn as sns  # For data visualization
+import matplotlib.pyplot as plt  # For data visualization
+from sklearn.model_selection import train_test_split  # For splitting data into train and test sets
+from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet  # Regression models
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler  # For feature engineering and scaling
+from sklearn.metrics import root_mean_squared_error, r2_score, mean_absolute_error  # Evaluation metrics
+from sklearn.model_selection import GridSearchCV, KFold  # For hyperparameter tuning and cross-validation
+from sklearn.pipeline import Pipeline  # For creating a pipeline
+
+# For saving Model as pickle file
+def save_model(model, filename):
+    with open(filename, 'wb') as file:
+        pickle.dump(model, file)
+
+# For reading Model as pickle file
+def load_model(filename):
+    with open(filename, 'rb') as file:
+        return pickle.load(file)
+
+
+#For Loading Data
+data=pd.read_csv("Algerian_forest_fires_cleaned.csv")
+
+#Processing and Cleaning Data
+data.dropna(inplace=True)
+data.drop_duplicates(inplace=True)
+
+data['is_Fire']=(data['Classes']=='fire').astype(int)
+
+data.drop('Classes', axis=1, inplace=True)
+data.drop('day', axis=1, inplace=True)
+data.drop('month', axis=1, inplace=True)
+data.drop('year', axis=1, inplace=True)
+data.drop('Region', axis=1, inplace=True)
+
+#Feature selection and feature engineering
+correlation= data.corr()['FWI'].abs().sort_values(ascending=False)
+
+best_features = correlation.index[1:4]
+print("Best Features:", best_features)
+
+#Data Visualization and Observations
+selected_features = [best_features[0],best_features[1], best_features[2], 'FWI']
+
+plt.figure(figsize=(8,6))
+correlation_matrix = data[selected_features].corr()
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+plt.title("Correlation Heatmap of Features and FWI")
+plt.show()
+
+# Scatterplot Matrix
+sns.pairplot(data[selected_features])
+plt.suptitle("Pairwise Relationships between Features and FWI", y=1.02)
+plt.show()
+
+#Implementation of multiple linear regression and polynomial regression models.
+
+#Selected Features
+X=data[[best_features[0], best_features[1], best_features[2]]]
+y= data['FWI']
+
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Multiple Linear Regression
+linear_reg_model = LinearRegression()
+linear_reg_model.fit(X_train, y_train)
+
+# Evaluate the model on the testing set
+linear_reg_predictions = linear_reg_model.predict(X_test)
+linear_reg_rmse = root_mean_squared_error(y_test, linear_reg_predictions)
+linear_reg_r2 = r2_score(y_test, linear_reg_predictions)
+linear_reg_mae= mean_absolute_error(y_test, linear_reg_predictions)
+print("Multiple Linear Regression RMSE:", linear_reg_rmse)
+print("Multiple Linear Regression R2:", linear_reg_r2)
+print("Multiple Linear Regression MAE:", linear_reg_mae)
+#save_model(linear_reg_model, 'linear_reg_model.pkl')
+
+
+# Polynomial Regression
+degree = 2  # Define the degree of polynomial features
+poly_features = PolynomialFeatures(degree=degree)
+X_train_poly = poly_features.fit_transform(X_train)
+X_test_poly = poly_features.transform(X_test)
+
+poly_reg_model = LinearRegression()
+poly_reg_model.fit(X_train_poly, y_train)
+
+# Evaluate the model on the testing set
+poly_reg_predictions = poly_reg_model.predict(X_test_poly)
+poly_reg_rmse = root_mean_squared_error(y_test, poly_reg_predictions)
+poly_reg_r2= r2_score(y_test,poly_reg_predictions)
+poly_reg_mae = mean_absolute_error(y_test, poly_reg_predictions)
+print("Polynomial Regression (Degree {}): RMSE: {}".format(degree, poly_reg_rmse))
+print("Polynomial Regression (Degree {}): R2: {}".format(degree, poly_reg_r2))
+print("Polynomial Regression (Degree {}): MAE: {}".format(degree, poly_reg_mae))
+#save_model(poly_reg_model, 'poly_reg_model.pkl')
+
+# Standardize features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Lasso Regression
+lasso_pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('lasso', Lasso())
+])
+
+lasso_param_grid = {'lasso__alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+kfold=KFold(n_splits=5, shuffle=True, random_state=42)
+
+lasso_grid_search = GridSearchCV(lasso_pipe, param_grid=lasso_param_grid, cv=kfold, scoring='neg_mean_squared_error')
+lasso_grid_search.fit(X_train_scaled, y_train)
+
+# Evaluate Lasso model
+lasso_best_model = lasso_grid_search.best_estimator_
+lasso_predictions = lasso_best_model.predict(X_test_scaled)
+lasso_rmse = root_mean_squared_error(y_test, lasso_predictions)
+lasso_r2 = r2_score(y_test, lasso_predictions)
+lasso_mae = mean_absolute_error(y_test, lasso_predictions)
+print("Lasso Regression RMSE:", lasso_rmse)
+print("Lasso Regression R2:", lasso_r2)
+print("Lasso Regression MAE:", lasso_mae)
+print("Best Lasso Alpha:", lasso_grid_search.best_params_)
+#save_model(lasso_best_model, 'lasso_best_model.pkl')
+
+# Ridge Regression
+ridge_pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('ridge', Ridge())
+])
+
+ridge_param_grid = {'ridge__alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+ridge_grid_search = GridSearchCV(ridge_pipe, param_grid=ridge_param_grid, cv=kfold, scoring='neg_mean_squared_error')
+ridge_grid_search.fit(X_train_scaled, y_train)
+
+# Evaluate Ridge model
+ridge_best_model = ridge_grid_search.best_estimator_
+ridge_predictions = ridge_best_model.predict(X_test_scaled)
+ridge_rmse = root_mean_squared_error(y_test, ridge_predictions)
+ridge_r2=r2_score(y_test, ridge_predictions)
+ridge_mae=mean_absolute_error(y_test, ridge_predictions)
+print("Ridge Regression RMSE:", ridge_rmse)
+print("Ridge Regression R2:", ridge_r2)
+print("Ridge Regression MAE:", ridge_mae)
+print("Best Ridge Alpha:", ridge_grid_search.best_params_)
+#save_model(ridge_best_model, 'ridge_best_model.pkl')
+
+# ElasticNet Regression
+elasticnet_pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('elasticnet', ElasticNet())
+])
+
+elasticnet_param_grid = {
+    'elasticnet__alpha': [0.001, 0.01, 0.1, 1, 10, 100],
+    'elasticnet__l1_ratio': [0.1, 0.3, 0.5, 0.7, 0.9]
+}
+
+elasticnet_grid_search = GridSearchCV(elasticnet_pipe, param_grid=elasticnet_param_grid, cv=kfold, scoring='neg_mean_squared_error')
+elasticnet_grid_search.fit(X_train_scaled, y_train)
+
+# Evaluate ElasticNet model
+elasticnet_best_model = elasticnet_grid_search.best_estimator_
+elasticnet_predictions = elasticnet_best_model.predict(X_test_scaled)
+elasticnet_rmse = root_mean_squared_error(y_test, elasticnet_predictions)
+elasticnet_r2 = r2_score(y_test, elasticnet_predictions)
+elasticnet_mae = mean_absolute_error(y_test, elasticnet_predictions)
+print("ElasticNet Regression RMSE:", elasticnet_rmse)
+print("ElasticNet Regression R2:", elasticnet_r2)
+print("ElasticNet Regression MAE:", elasticnet_mae)
+print("Best ElasticNet Alpha and L1 Ratio:", elasticnet_grid_search.best_params_)
+#save_model(elasticnet_best_model, 'elasticnet_best_model.pkl')
+
+#model on unseen data
+
+unseen_data=pd.read_csv("generated_forest_fire_data.csv")
+
+X_unseen = unseen_data[[best_features[0],best_features[1],best_features[2]]]
+y_unseen = unseen_data['FWI']
+
+
+# Multiple Linear Regression
+linear_reg_model = load_model('linear_reg_model.pkl')
+linear_reg_predictions = linear_reg_model.predict(X_unseen)
+linear_reg_rmse = root_mean_squared_error(y_unseen, linear_reg_predictions)
+linear_reg_r2 = r2_score(y_unseen, linear_reg_predictions)
+linear_reg_mae = mean_absolute_error(y_unseen, linear_reg_predictions)
+print("Multiple Linear Regression (Unseen Data) RMSE:", linear_reg_rmse)
+print("Multiple Linear Regression (Unseen Data) R^2:", linear_reg_r2)
+print("Multiple Linear Regression (Unseen Data) MAE:", linear_reg_mae)
+
+# Polynomial Regression
+degree = 2  # Define the degree of polynomial features
+poly_features = PolynomialFeatures(degree=degree)
+X_unseen_poly = poly_features.fit_transform(X_unseen)
+
+poly_reg_model = load_model('poly_reg_model.pkl')
+poly_reg_predictions = poly_reg_model.predict(X_unseen_poly)
+poly_reg_rmse = root_mean_squared_error(y_unseen, poly_reg_predictions)
+poly_reg_r2 = r2_score(y_unseen, poly_reg_predictions)
+poly_reg_mae = mean_absolute_error(y_unseen, poly_reg_predictions)
+print("Polynomial Regression (Degree {}) (Unseen Data) RMSE: {}".format(degree, poly_reg_rmse))
+print("Polynomial Regression (Degree {}) (Unseen Data) R^2: {}".format(degree, poly_reg_r2))
+print("Polynomial Regression (Degree {}) (Unseen Data) MAE: {}".format(degree, poly_reg_mae))
+
+# Lasso Regression
+lasso_best_model = load_model('lasso_best_model.pkl')
+X_unseen_scaled = StandardScaler().fit_transform(X_unseen)
+lasso_predictions = lasso_best_model.predict(X_unseen_scaled)
+lasso_rmse = root_mean_squared_error(y_unseen, lasso_predictions)
+lasso_r2 = r2_score(y_unseen, lasso_predictions)
+lasso_mae = mean_absolute_error(y_unseen, lasso_predictions)
+print("Lasso Regression (Unseen Data) RMSE:", lasso_rmse)
+print("Lasso Regression (Unseen Data) R^2:", lasso_r2)
+print("Lasso Regression (Unseen Data) MAE:", lasso_mae)
+
+# Ridge Regression
+ridge_best_model = load_model('ridge_best_model.pkl')
+ridge_predictions = ridge_best_model.predict(X_unseen_scaled)
+ridge_rmse = root_mean_squared_error(y_unseen, ridge_predictions)
+ridge_r2 = r2_score(y_unseen, ridge_predictions)
+ridge_mae = mean_absolute_error(y_unseen, ridge_predictions)
+print("Ridge Regression (Unseen Data) RMSE:", ridge_rmse)
+print("Ridge Regression (Unseen Data) R^2:", ridge_r2)
+print("Ridge Regression (Unseen Data) MAE:", ridge_mae)
+
+# ElasticNet Regression
+elasticnet_best_model = load_model('elasticnet_best_model.pkl')
+elasticnet_predictions = elasticnet_best_model.predict(X_unseen_scaled)
+elasticnet_rmse = root_mean_squared_error(y_unseen, elasticnet_predictions)
+elasticnet_r2 = r2_score(y_unseen, elasticnet_predictions)
+elasticnet_mae = mean_absolute_error(y_unseen, elasticnet_predictions)
+print("ElasticNet Regression (Unseen Data) RMSE:", elasticnet_rmse)
+print("ElasticNet Regression (Unseen Data) R^2:", elasticnet_r2)
+print("ElasticNet Regression (Unseen Data) MAE:", elasticnet_mae)

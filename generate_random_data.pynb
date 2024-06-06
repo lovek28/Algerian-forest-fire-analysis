@@ -1,0 +1,29 @@
+import pandas as pd
+import numpy as np
+
+num_samples = 100
+
+np.random.seed(42)
+
+# Generate random data
+data = {
+    'Temperature': np.random.randint(15, 35, num_samples),
+    'RH': np.random.randint(20, 100, num_samples),
+    'Ws': np.random.randint(5, 30, num_samples),
+    'Rain': np.round(np.random.uniform(0, 10, num_samples), 1),
+    'FFMC': np.round(np.random.uniform(10, 90, num_samples), 1),
+    'DMC': np.round(np.random.uniform(1, 50, num_samples), 1),
+    'DC': np.round(np.random.uniform(1, 200, num_samples), 1),
+    'ISI': np.round(np.random.uniform(0.1, 15, num_samples), 1),
+    'BUI': np.round(np.random.uniform(1, 100, num_samples), 1),
+    'FWI': np.round(np.random.uniform(0.1, 40, num_samples), 1),
+    'is_Fire': np.random.choice([0,1], num_samples),
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Save to CSV
+df.to_csv('generated_forest_fire_data.csv', index=False)
+
+print(df.head())
